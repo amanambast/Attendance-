@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AMAN SMART ATTENDANCE AI</title>
+
+<style>
+*{
+box-sizing:border-box;
+margin:0;
+padding:0;
+font-family:Arial,sans-serif;
+}
+
+body{
+background:#eef2ff;
+color:#172554;
+}
+
+header{
+background:#172554;
+color:white;
+padding:22px;
+text-align:center;
+}
+
+.container{
+max-width:1100px;
+margin:25px auto;
+padding:15px;
+}
+
+.panel{
+background:white;
+padding:20px;
+border-radius:14px;
+margin-bottom:20px;
+box-shadow:0 4px 15px #0001;
+}
+
+input,select{
+padding:12px;
+border:1px solid #ccc;
+border-radius:8px;
+width:100%;
+margin:8px 0;
+}
+
+button{
+padding:11px 15px;
+border:0;
+border-radius:8px;
+background:#2563eb;
+color:white;
+cursor:pointer;
+margin:4px;
+}
+
+button:hover{opacity:.8}
+
+.green{background:#16a34a}
+.red{background:#dc2626}
+.orange{background:#ea580c}
+
+.cards{
+display:grid;
+grid-template-columns:repeat(4,1fr);
+gap:12px;
+margin-bottom:20px;
+}
+
+.card{
+background:white;
+padding:20px;
+text-align:center;
+border-radius:12px;
+}
+
+.card h2{
+color:#2563eb;
+margin-top:10px;
+}
+
+table{
+width:100%;
+border-collapse:collapse;
+margin-top:15px;
+}
+
+th,td{
+padding:12px;
+border-bottom:1px solid #ddd;
+text-align:center;
+}
+
+th{background:#dbeafe}
+
+.hidden{display:none}
+
+.status{
+padding:8px;
+border-radius:8px;
+background:#e0f2fe;
+display:inline-block;
+margin:8px 0;
+}
+
+@media(max-width:650px){
+.cards{grid-template-columns:repeat(2,1fr)}
+table{font-size:12px}
+th,td{padding:7px 3px}
+}
+</style>
+</head>
+
+<body>
+
+<header>
+<h1>AMAN SMART ATTENDANCE AI</h1>
+<p>Biometric Attendance Management System</p>
+</header>
+
+<div class="container">
+
+<!-- LOGIN -->
+
+<div class="panel" id="login">
+
+<h2>🔐 Login</h2>
+
+<select id="role">
+<option value="student">Student</option>
+<option value="teacher">Teacher</option>
+<option value="admin">Admin</option>
+</select>
+
+<input id="user" placeholder="Username">
+
+<input id="pass" type="password"
+placeholder="Password">
+
+<button onclick="loginUser()">Login</button>
+
+<p id="loginMessage"></p>
+
+</div>
+
+<!-- DASHBOARD -->
+
+<div id="dashboard" class="hidden">
+
+<div class="panel">
+
+<h2 id="welcome"></h2>
+
+<button onclick="logout()" class="red">Logout</button>
+
+</div>
+
+<div class="cards">
+
+<div class="card">
+Total Students
+<h2 id="total">0</h2>
+</div>
+
+<div class="card">
+Present
+<h2 id="present">0</h2>
+</div>
+
+<div class="card">
+Pending
+<h2 id="pending">0</h2>
+</div>
+
+<div class="card">
+Attendance %
+<h2 id="percent">0%</h2>
+</div>
+
+</div>
+
+<!-- STUDENT SECTION -->
+
+<div class="panel hidden" id="studentSection">
+
+<h2>📱 Student Attendance</h2>
+
+<p>Step 1: Verify your phone biometric.</p>
+
+<button onclick="registerBiometric()">
+Register Biometric
+</button>
+
+<button onclick="verifyBiometric()">
+Verify Fingerprint / Face
+</button>
+
+<p id="bioStatus" class="status">
+Biometric not verified
+</p>
+
+<hr>
+
+<h3>GPS Verification</h3>
+
+<button onclick="getLocation()">
+Check My Location
+</button>
+
+<p id="locationStatus"></p>
+
+<button class="green" onclick="requestAttendance()">
+Submit Attendance Request
+</button>
+
+</div>
+
+<!-- TEACHER SECTION -->
+
+<div class="panel hidden" id="teacherSection">
+
+<h2>👨‍🏫 Teacher Approval</h2>
+
+<button onclick="verifyBiometric()">
+Verify Teacher Biometric
+</button>
+
+<p id="teacherBioStatus"></p>
+
+<div id="teacherRequests"></div>
+
+</div>
+
+<!-- ADMIN SECTION -->
+
+<div class="panel hidden" id="adminSection">
+
+<h2>👑 Admin Dashboard</h2>
+
+<h3>Add Student</h3>
+
+<input id="newName" placeholder="Student Name">
+
+<input id="newRoll" placeholder="Roll Number">
+
+<button onclick="addStudent()">Add Student</button>
+
+<h3>Attendance Records</h3>
+
+<div id="adminRecords"></div>
+
+<button onclick="downloadCSV()">
+Download CSV Report
+</button>
+
+</div>
+
+</div>
+</div>
+
+<script>
+
+// DEMO LOGIN CREDENTIALS
+// Production use requires secure server authentication.
+
+const users={
+admin:{password:"admin123",role:"admin"},
+teacher:{password:"teacher123",role:"teacher"},
+student:{password:"student123",role:"student"}
+};
+
+let currentUser=null;
+let biometricVerified=false;
+let locationVerified=false;
+
+let students=JSON.parse(
+localStorage.getItem("students")||"[]"
+);
+
+let requests=JSON.parse(
+localStorage.getItem("requests")||"[]"
+);
+
+let records=JSON.parse(
+localStorage.getItem("records")||"[]"
+);
+
+// Save data
+
+function save(){
+localStorage.setItem("students",JSON.stringify(students));
+localStorage.setItem("requests",JSON.stringify(requests));
+localStorage.setItem("records",JSON.stringify(records));
+}
+
+// Login
+
+function loginUser(){
+
+let username=document.getElementById("user").value.trim();
+let password=document.getElementById("pass").value;
+let role=document.getElementById("role").value;
+
+let account=users[username];
+
+if(!account || account.password!==password ||
+account.role!==role){
+
+document.getElementById("loginMessage").innerText=
+"Invalid Login Details";
+
+return;
+}
+
+currentUser={username,role};
+
+document.getElementById("login").classList.add("hidden");
+document.getElementById("dashboard").classList.remove("hidden");
+
+document.getElementById("welcome").innerText=
+"Welcome "+username;
+
+document.getElementById(role+"Section").classList.remove("hidden");
+
+render();
+}
+
+// Logout
+
+function logout(){
+location.reload();
+}
+
+// Biometric Registration
+
+async function registerBiometric(){
+
+if(!window.PublicKeyCredential ||
+!navigator.credentials){
+
+alert("WebAuthn supported device and secure HTTPS required.");
+return;
+}
+
+try{
+
+const challenge=crypto.getRandomValues(new Uint8Array(32));
+
+const credential=await navigator.credentials.create({
+
+publicKey:{
+challenge:challenge,
+rp:{
+name:"AMAN SMART ATTENDANCE AI"
+},
+user:{
+id:new TextEncoder().encode(currentUser.username),
+name:currentUser.username,
+displayName:currentUser.username
+},
+pubKeyCredParams:[
+{type:"public-key",alg:-7},
+{type:"public-key",alg:-257}
+],
+authenticatorSelection:{
+authenticatorAttachment:"platform",
+userVerification:"required"
+},
+timeout:60000,
+attestation:"none"
+}
+
+});
+
+if(credential){
+
+localStorage.setItem(
+"credential_"+currentUser.username,
+JSON.stringify({
+id:credential.id,
+registered:true
+})
+);
+
+document.getElementById("bioStatus").innerText=
+"Biometric registered successfully";
+
+}
+
+}catch(e){
+alert("Biometric registration failed: "+e.message);
+}
+
+}
+
+// Biometric verification
+
+async function verifyBiometric(){
+
+if(!currentUser)return;
+
+let saved=localStorage.getItem(
+"credential_"+currentUser.username
+);
+
+if(!saved){
+
+alert("Please register biometric first.");
+return;
+}
+
+try{
+
+const info=JSON.parse(saved);
+
+const challenge=crypto.getRandomValues(
+new Uint8Array(32)
+);
+
+const result=await navigator.credentials.get({
+
+publicKey:{
+challenge:challenge,
+allowCredentials:[{
+type:"public-key",
+id:Uint8Array.from(
+atob(info.id.replace(/-/g,"+").replace(/_/g,"/")),
+c=>c.charCodeAt(0)
+)
+}],
+userVerification:"required",
+timeout:60000
+}
+
+});
+
+if(result){
+
+biometricVerified=true;
+
+document.getElementById("bioStatus").innerText=
+"Biometric verified successfully";
+
+document.getElementById("teacherBioStatus").innerText=
+"Teacher biometric verified";
+
+}
+
+}catch(e){
+
+alert("Verification failed: "+e.message);
+
+}
+
+}
+
+// GPS
+
+function getLocation(){
+
+if(!navigator.geolocation){
+alert("GPS not supported");
+return;
+}
+
+navigator.geolocation.getCurrentPosition(
+
+position=>{
+
+locationVerified=true;
+
+document.getElementById("locationStatus").innerText=
+"Location detected: "+
+position.coords.latitude.toFixed(5)+", "+
+position.coords.longitude.toFixed(5);
+
+},
+
+()=>alert("Location permission denied"),
+
+{enableHighAccuracy:true,timeout:15000}
+
+);
+
+}
+
+// Attendance request
+
+function requestAttendance(){
+
+if(!biometricVerified){
+alert("Please verify biometric first");
+return;
+}
+
+if(!locationVerified){
+alert("Please verify location first");
+return;
+}
+
+if(!students.some(s=>s.roll===currentUser.username)){
+alert("Your student account is not registered.");
+return;
+}
+
+let already=requests.some(r=>
+r.username===currentUser.username &&
+r.date===new Date().toLocaleDateString("en-CA")
+);
+
+if(already){
+alert("Attendance request already submitted");
+return;
+}
+
+requests.push({
+
+username:currentUser.username,
+date:new Date().toLocaleDateString("en-CA"),
+status:"Pending"
+
+});
+
+save();
+render();
+
+alert("Attendance request submitted!");
+
+}
+
+// Add student
+
+function addStudent(){
+
+let name=document.getElementById("newName").value.trim();
+let roll=document.getElementById("newRoll").value.trim();
+
+if(!name||!roll){
+alert("Enter student details");
+return;
+}
+
+if(students.some(s=>s.roll===roll)){
+alert("Roll already exists");
+return;
+}
+
+students.push({name,roll});
+
+save();
+render();
+
+alert("Student added successfully");
+
+}
+
+// Teacher approval
+
+function approveAttendance(index){
+
+if(!biometricVerified){
+alert("Teacher biometric verification required");
+return;
+}
+
+let r=requests[index];
+
+if(!r || r.status!=="Pending")return;
+
+r.status="Approved";
+
+records.push({
+username:r.username,
+date:r.date,
+status:"Present",
+approvedBy:currentUser.username
+});
+
+save();
+render();
+
+}
+
+function rejectAttendance(index){
+
+if(!biometricVerified){
+alert("Teacher biometric verification required");
+return;
+}
+
+requests[index].status="Rejected";
+
+save();
+render();
+
+}
+
+// Dashboard
+
+function render(){
+
+document.getElementById("total").innerText=students.length;
+
+let today=new Date().toLocaleDateString("en-CA");
+
+let todayRecords=records.filter(r=>r.date===today);
+
+document.getElementById("present").innerText=
+todayRecords.length;
+
+document.getElementById("pending").innerText=
+requests.filter(r=>r.status==="Pending").length;
+
+let percent=students.length?
+(todayRecords.length/students.length*100).toFixed(1):0;
+
+document.getElementById("percent").innerText=
+percent+"%";
+
+let reqHTML="<h3>Attendance Requests</h3>";
+
+requests.forEach((r,i)=>{
+
+reqHTML+=`
+<div class="panel">
+<b>${escapeHTML(r.username)}</b>
+<p>${escapeHTML(r.date)}</p>
+<p>Status: ${escapeHTML(r.status)}</p>
+<button class="green" onclick="approveAttendance(${i})">
+Approve
+</button>
+<button class="red" onclick="rejectAttendance(${i})">
+Reject
+</button>
+</div>`;
+
+});
+
+document.getElementById("teacherRequests").innerHTML=reqHTML;
+
+let adminHTML="<table>
+<tr><th>Roll</th><th>Name</th></tr>";
+
+students.forEach(s=>{
+adminHTML+=`
+<tr>
+<td>${escapeHTML(s.roll)}</td>
+<td>${escapeHTML(s.name)}</td>
+</tr>`;
+});
+
+adminHTML+="</table>";
+
+document.getElementById("adminRecords").innerHTML=adminHTML;
+
+}
+
+// CSV Export
+
+function downloadCSV(){
+
+let csv="Student,Date,Status,Approved By\n";
+
+records.forEach(r=>{
+
+csv+=`"${r.username}","${r.date}","${r.status}","${r.approvedBy}"\n`;
+
+});
+
+let blob=new Blob([csv],{type:"text/csv"});
+
+let a=document.createElement("a");
+a.href=URL.createObjectURL(blob);
+a.download="Attendance_Report.csv";
+a.click();
+
+URL.revokeObjectURL(a.href);
+
+}
+
+function escapeHTML(value){
+
+return String(value).replace(/[&<>"']/g,c=>({
+"&":"&amp;",
+"<":"&lt;",
+">":"&gt;",
+'"':"&quot;",
+"'":"&#39;"
+}[c]));
+
+}
+
+</script>
+
+</body>
+</html>
